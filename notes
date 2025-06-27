@@ -1,0 +1,6 @@
+Run the server using
+```sh
+uv run main.py
+```
+Then configure an MCP client to connect the server to read the tools and use them
+
