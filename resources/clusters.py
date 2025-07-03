@@ -29,7 +29,7 @@ class ClusterParser:
         elif not self.must_gather_path:
             raise ValueError("Must provide must_gather_path either in constructor or method call")
 
-        clusters = []
+        acis = []
         
         # Look for AgentClusterInstall CRs
         namespaces_path = self.must_gather_path / "namespaces"
@@ -43,27 +43,27 @@ class ClusterParser:
                     ns_cluster_path = namespace_dir / "extensions.hive.openshift.io" / "agentclusterinstalls"
                     self.logger.info(f"Checking agentclusterinstalls in namespace: {ns_cluster_path}")
                     if ns_cluster_path.exists():
-                        clusters.extend(self._parse_cluster_files(ns_cluster_path, scope="namespaced", namespace=namespace))
+                        acis.extend(self._parse_aci_files(ns_cluster_path))
                     else:
                         self.logger.info(f"No agentclusterinstalls found in namespace: {namespace}")
 
         
-        self.logger.info(f"Found {len(clusters)} AgentClusterInstall CRs")
-        return clusters
+        self.logger.info(f"Found {len(acis)} AgentClusterInstall CRs")
+        return acis
 
-    def _parse_cluster_files(self, clusters_dir: Path, scope: str, namespace: str = None) -> List[Dict[str, Any]]:
-        """Parse individual Cluster CR files in a directory."""
-        clusters = []
+    def _parse_aci_files(self, acis_dir: Path) -> List[Dict[str, Any]]:
+        """Parse individual AgentClusterInstall CR files in a directory."""
+        acis = []
         
-        for cluster_file in clusters_dir.iterdir():
-            if cluster_file.is_file() and cluster_file.suffix in ['.yaml', '.yml']:
-                clusters.extend(self._parse_cluster_yaml_file(cluster_file, scope, namespace))
+        for aci_file in acis_dir.iterdir():
+            if aci_file.is_file() and aci_file.suffix in ['.yaml', '.yml']:
+                acis.extend(self._parse_aci_yaml_file(aci_file))
             
-        return clusters
+        return acis
 
-    def _parse_cluster_yaml_file(self, file_path: Path, scope: str, namespace: str = None) -> List[Dict[str, Any]]:
-        """Parse a YAML file containing Cluster CRs."""
-        clusters = []
+    def _parse_aci_yaml_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Parse a YAML file containing AgentClusterInstall CRs."""
+        acis = []
         
         try:
             with open(file_path, 'r') as f:
@@ -76,38 +76,38 @@ class ClusterParser:
                 if doc and isinstance(doc, dict):
                     # Check if this is an AgentClusterInstall CR
                     if doc.get('kind') == 'AgentClusterInstall' and doc.get('apiVersion', '').startswith('extensions.hive.openshift.io'):
-                        cluster = self._parse_single_cluster(doc, scope, namespace)
-                        if cluster:
-                            clusters.append(cluster)
+                        aci = self._parse_single_aci(doc, file_path)
+                        if aci:
+                            acis.append(aci)
                             
         except Exception as e:
             self.logger.warning(f"Failed to parse {file_path}: {e}")
         
-        return clusters
+        return acis
 
-    def _parse_single_cluster(self, cluster_doc: Dict[str, Any], scope: str, namespace: str = None) -> Optional[Dict[str, Any]]:
+    def _parse_single_aci(self, aci_doc: Dict[str, Any], file_path: Path) -> Optional[Dict[str, Any]]:
         """Parse a single AgentClusterInstall CR document."""
         try:
-            metadata = cluster_doc.get('metadata', {})
-            spec = cluster_doc.get('spec', {})
-            status = cluster_doc.get('status', {})
+            metadata = aci_doc.get('metadata', {})
+            spec = aci_doc.get('spec', {})
+            status = aci_doc.get('status', {})
             
-            cluster = {
+            aci = {
                 'name': metadata.get('name', 'unknown'),
-                'namespace': namespace or metadata.get('namespace'),
-                'scope': scope,
+                'namespace': metadata.get('namespace'),
                 'creation_timestamp': metadata.get('creationTimestamp'),
                 'labels': metadata.get('labels', {}),
                 'annotations': metadata.get('annotations', {}),
-                'api_version': cluster_doc.get('apiVersion'),
+                'api_version': aci_doc.get('apiVersion'),
                 'spec': spec,
                 'status': status,
+                'file_path': file_path,
             }
 
-            return cluster
+            return aci
             
         except Exception as e:
-            self.logger.warning(f"Failed to parse cluster document: {e}")
+            self.logger.warning(f"Failed to parse aci document: {e}")
             return None
 
     def get_failed_clusters(self, must_gather_path: str = None) -> List[Dict[str, Any]]:
@@ -117,14 +117,16 @@ class ClusterParser:
         elif not self.must_gather_path:
             raise ValueError("Must provide must_gather_path either in constructor or method call")
 
-        clusters = self.find_agentclusterinstall_crs()
-        failed = self._failed_clusters(clusters)
+        acis = self.find_agentclusterinstall_crs()
+        failed = self._failed_clusters(acis)
         self.logger.info(f"Found {len(failed)} failed clusters")
         for cluster in failed:
             self.logger.info(f"Cluster {cluster['name']} in namespace {cluster['namespace']} has failed installation.")
             for condition in cluster['status']['conditions']:
                 if condition.get('type') == 'Completed':
                     self.logger.info(f"Completed condition: {condition.get('message')}")
+            self.logger.info(f"File path: {cluster['file_path']}")
+
         return failed
 
     def _failed_clusters(self, clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
