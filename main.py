@@ -16,16 +16,16 @@ def parse_must_gather(must_gather_path: str) -> str:
 
 @mcp.tool()
 def get_failed_agents(agents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Get the names and namespaces of the agents that are not installed"""
-    failed_agents = get_failed_agents(agents)
+    """Get the names and namespaces of the agents that have failed installation"""
+    failed_agents = parse_mg(agents)
     for agent in failed_agents:
         logger.info(f"Agent {agent['name']} in namespace {agent['namespace']} is not installed")
     return failed_agents
 
 @mcp.tool()
 def get_failed_clusters(clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Get the names and namespaces of the clusters that are not installed"""
-    failed_clusters = get_failed_clusters(clusters)
+    """Get the names and namespaces of the clusters that have failed installation"""
+    failed_clusters = parse_mg(clusters, clusters=True)
     for cluster in failed_clusters:
         logger.info(f"Cluster {cluster['name']} in namespace {cluster['namespace']} is not installed")
     return failed_clusters
