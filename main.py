@@ -32,7 +32,7 @@ def get_failed_clusters(clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def get_failed_agents_and_clusters(must_gather_path: str) -> List[Dict[str, Any]]:
     """Get the names and namespaces of the agents and clusters that have failed installation"""
-    failed_clusters = parse_mg(must_gather_path, clusters=True)
+    failed_clusters = parse_mg(must_gather_path, clusters=True, agents=True)
     return failed_clusters
 
 if __name__ == "__main__":

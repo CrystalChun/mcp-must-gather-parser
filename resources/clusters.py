@@ -98,6 +98,7 @@ class ClusterParser:
                 'name': metadata.get('name', 'unknown'),
                 'namespace': metadata.get('namespace'),
                 'creation_timestamp': metadata.get('creationTimestamp'),
+                'type': 'cluster',
                 'labels': metadata.get('labels', {}),
                 'annotations': metadata.get('annotations', {}),
                 'api_version': aci_doc.get('apiVersion'),
@@ -126,7 +127,7 @@ class ClusterParser:
         failed = self._failed_clusters(acis)
         self.logger.info(f"Found {len(failed)} failed clusters")
         for cluster in failed:
-            self.logger.info(f"Cluster {cluster['name']} in namespace {cluster['namespace']} has failed installation. Reason: {cluster['reason']}")
+            self.logger.info(f"Cluster {cluster['cluster_deployment_name']} in namespace {cluster['namespace']} has failed installation. Reason: {cluster['reason']}")
         return failed
 
     def _failed_clusters(self, clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
