@@ -112,7 +112,12 @@ if __name__ == "__main__":
     # Test the function with a must-gather path
     import sys
     if len(sys.argv) > 1:
-        result = parse_must_gather(sys.argv[1], clusters=True)
+        clusters = parse_must_gather(sys.argv[1], clusters=True)
+        for cluster in clusters:
+            agents = AgentParser(sys.argv[1]).find_agents_belonging_to_cluster(cluster['cluster_deployment_name'], cluster['namespace'])
+            print(f"Cluster {cluster['cluster_deployment_name']} in namespace {cluster['namespace']} has failed installation. Reason: {cluster['reason']}")
+            for agent in agents:
+                print(f"Agent {agent['name']} in namespace {agent['namespace']} is part of cluster that failed installation. Reason: {agent['reason']}")
         #print(result)
     else:
         print("Usage: python parse.py <must-gather-path>")

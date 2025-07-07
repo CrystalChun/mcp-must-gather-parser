@@ -30,5 +30,10 @@ def get_failed_clusters(clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         logger.info(f"Cluster {cluster['name']} in namespace {cluster['namespace']} is not installed")
     return failed_clusters
 
+def get_failed_agents_and_clusters(must_gather_path: str) -> List[Dict[str, Any]]:
+    """Get the names and namespaces of the agents and clusters that have failed installation"""
+    failed_clusters = parse_mg(must_gather_path, clusters=True)
+    return failed_clusters
+
 if __name__ == "__main__":
     mcp.run(transport="sse")

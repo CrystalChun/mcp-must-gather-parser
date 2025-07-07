@@ -33,34 +33,42 @@ class AgentParser:
         
         # Look for namespaced Agent CRs
         namespaces_path = self.must_gather_path / "namespaces"
-        self.logger.info(f"Checking namespaces: {namespaces_path}")
         if namespaces_path.exists():
             for namespace_dir in namespaces_path.iterdir():
                 if namespace_dir.is_dir():
                     namespace = namespace_dir.name
-                    self.logger.info(f"Checking namespace: {namespace}")
                     # Check for agents in this namespace
-                    ns_agents_path = namespace_dir / "agent-install.openshift.io" / "agents"
-                    self.logger.info(f"Checking agents in namespace: {ns_agents_path}")
-                    if ns_agents_path.exists():
-                        agents.extend(self._parse_agent_files(ns_agents_path, scope="namespaced", namespace=namespace))
-                    else:
-                        self.logger.info(f"No agents found in namespace: {namespace}")
+                    agents.extend(self.find_agent_crs_in_directory(namespace_dir))
         
         self.logger.info(f"Found {len(agents)} Agent CRs")
         return agents
+    
+    def find_agent_crs_in_directory(self, directory: Path) -> List[Dict[str, Any]]:
+        agents = []
+        ns_agents_path = directory / "agent-install.openshift.io" / "agents"
+        if ns_agents_path.exists():
+            agents.extend(self._parse_agent_files(ns_agents_path))
+        return agents
 
-    def _parse_agent_files(self, agents_dir: Path, scope: str, namespace: str = None) -> List[Dict[str, Any]]:
+    def find_agents_belonging_to_cluster(self, cluster_name: str, cluster_namespace: str) -> List[Dict[str, Any]]:
+        """Find agents belonging to a cluster."""
+        agents = []
+        for agent in self.find_agent_crs():
+            if agent['cluster_deployment_name'] == cluster_name and agent['cluster_namespace'] == cluster_namespace:
+                agents.append(agent)
+        return agents
+
+    def _parse_agent_files(self, agents_dir: Path, namespace: str = None) -> List[Dict[str, Any]]:
         """Parse individual Agent CR files in a directory."""
         agents = []
         
         for agent_file in agents_dir.iterdir():
             if agent_file.is_file() and agent_file.suffix in ['.yaml', '.yml']:
-                agents.extend(self._parse_agent_yaml_file(agent_file, scope, namespace))
+                agents.extend(self._parse_agent_yaml_file(agent_file, namespace))
         
         return agents
 
-    def _parse_agent_yaml_file(self, file_path: Path, scope: str, namespace: str = None) -> List[Dict[str, Any]]:
+    def _parse_agent_yaml_file(self, file_path: Path, namespace: str = None) -> List[Dict[str, Any]]:
         """Parse a YAML file containing Agent CRs."""
         agents = []
         
@@ -77,7 +85,7 @@ class AgentParser:
                     if (doc.get('kind') == 'Agent' and 
                         doc.get('apiVersion', '').startswith('agent-install.openshift.io')):
                         
-                        agent = self._parse_single_agent(doc, scope, namespace)
+                        agent = self._parse_single_agent(doc, namespace)
                         if agent:
                             agents.append(agent)
                             
@@ -86,17 +94,23 @@ class AgentParser:
         
         return agents
 
-    def _parse_single_agent(self, agent_doc: Dict[str, Any], scope: str, namespace: str = None) -> Optional[Dict[str, Any]]:
+    def _parse_single_agent(self, agent_doc: Dict[str, Any], namespace: str = None) -> Optional[Dict[str, Any]]:
         """Parse a single Agent CR document."""
         try:
             metadata = agent_doc.get('metadata', {})
             spec = agent_doc.get('spec', {})
             status = agent_doc.get('status', {})
-            
+            conditions = status.get('conditions', [])
+            failed = False
+            reason = None
+            for condition in conditions:
+                if condition.get('type') == 'Installed' and condition.get('status') == 'False' and condition.get('reason') == 'InstallationFailed':
+                    failed = True
+                    reason = condition.get('message')
+
             agent = {
                 'name': metadata.get('name', 'unknown'),
                 'namespace': namespace or metadata.get('namespace'),
-                'scope': scope,
                 'creation_timestamp': metadata.get('creationTimestamp'),
                 'labels': metadata.get('labels', {}),
                 'annotations': metadata.get('annotations', {}),
@@ -105,7 +119,8 @@ class AgentParser:
                 'status': status,
                 
                 # Extract key information for easier analysis
-                'cluster_deployment_name': spec.get('clusterDeploymentName'),
+                'cluster_deployment_name': spec.get('clusterDeploymentName',{}).get('name'),
+                'cluster_namespace': spec.get('clusterDeploymentName',{}).get('namespace'),
                 'approved': spec.get('approved', False),
                 'hostname': spec.get('hostname'),
                 'machine_config_pool': spec.get('machineConfigPool'),
@@ -113,14 +128,15 @@ class AgentParser:
                 'installation_disk_path': spec.get('installationDiskPath'),
                 
                 # Status information
-                'conditions': status.get('conditions', []),
+                'conditions': conditions,
                 'debug_info': status.get('debugInfo', {}),
                 'inventory': status.get('inventory', {}),
                 'progress': status.get('progress', {}),
                 'validation_info': status.get('validationInfo', {}),
                 'installation_disk_id': status.get('installationDiskID'),
                 'node_name': status.get('nodeName'),
-                
+                'failed': failed,
+                'reason': reason,
                 # Raw document for detailed analysis
                 'raw': agent_doc
             }
@@ -241,10 +257,8 @@ class AgentParser:
         """Get a list of agents that have failed installation."""
         failed_agents = []
         for agent in agents:
-            conditions = agent.get('conditions', [])
-            for condition in conditions:
-                if condition.get('type') == 'Installed' and condition.get('status') == 'False' and condition.get('reason') == 'InstallationFailed':
-                    failed_agents.append(agent)
+            if agent['failed']:
+                failed_agents.append(agent)
         return failed_agents
 
     def analyze(self, must_gather_path: str = None) -> str:
@@ -279,8 +293,5 @@ class AgentParser:
         failed_agents = self.get_failed_agents(agents)
         self.logger.info(f"Found {len(failed_agents)} failed agents")
         for agent in failed_agents:
-            self.logger.info(f"Agent {agent['name']} in namespace {agent['namespace']} has failed installation. Cluster deployment name: {agent['cluster_deployment_name']}")
-            for condition in agent['conditions']:
-                if condition.get('type') == 'Installed':
-                    self.logger.info(f"Installed condition: {condition.get('message')}")
+            self.logger.info(f"Agent {agent['name']} in namespace {agent['namespace']} has failed installation. Cluster deployment name: {agent['cluster_deployment_name']}. Reason: {agent['reason']}")
         return failed_agents
