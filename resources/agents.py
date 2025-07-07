@@ -115,6 +115,7 @@ class AgentParser:
                 'labels': metadata.get('labels', {}),
                 'annotations': metadata.get('annotations', {}),
                 'api_version': agent_doc.get('apiVersion'),
+                'type': 'agent',
                 'spec': spec,
                 'status': status,
                 

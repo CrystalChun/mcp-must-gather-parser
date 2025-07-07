@@ -17,7 +17,7 @@ from resources.clusters import ClusterParser
 logger = structlog.get_logger(__name__)
 
 
-def parse_must_gather(must_gather_path: str, clusters: bool = False) -> List[Dict[str, Any]]:
+def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents: bool = False) -> List[Dict[str, Any]]:
     """
     Parse a must-gather archive or directory and extract Agent CRs.
     
@@ -25,7 +25,7 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False) -> List[Dic
         must_gather_path: Path to must-gather tar.gz file or extracted directory
         
     Returns:
-        JSON string containing Agent CR information and analysis
+        JSON string containing CR information
     """
     try:
         # Determine if input is a file or directory
@@ -42,7 +42,7 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False) -> List[Dic
         else:
             return json.dumps({
                 "error": f"Invalid must-gather path: {must_gather_path}. Must be a .tar.gz file or directory.",
-                "agents": [],
+                "return_data": [],
                 "summary": {}
             })
 
@@ -50,23 +50,23 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False) -> List[Dic
         if assisted_service_active(extracted_path):
             logger.info("assisted-service is enabled")
             if clusters:
-                logger.info("finding agentclusterinstall crs")
-                agents = ClusterParser(extracted_path).get_failed_clusters()
-            else:
-                logger.info("finding failed agent crs")
-                agents = AgentParser(extracted_path).find_failed_agents()
+                return_data = ClusterParser(extracted_path).get_failed_clusters()
+                if find_agents:
+                    for cluster in return_data:
+                        agents = AgentParser(extracted_path).find_agents_belonging_to_cluster(cluster['cluster_deployment_name'], cluster['namespace'])
+                        return_data.extend(agents)
        
         # Clean up extracted files if needed
         if cleanup_needed:
             cleanup_extraction(extracted_path)
         
-        return agents
+        return return_data
         
     except Exception as e:
         logger.error(f"Error parsing must-gather: {str(e)}")
         return json.dumps({
             "error": f"Failed to parse must-gather: {str(e)}",
-            "agents": [],
+            "return_data": [],
             "summary": {},
             "total_agents": 0
         })
@@ -112,12 +112,8 @@ if __name__ == "__main__":
     # Test the function with a must-gather path
     import sys
     if len(sys.argv) > 1:
-        clusters = parse_must_gather(sys.argv[1], clusters=True)
-        for cluster in clusters:
-            agents = AgentParser(sys.argv[1]).find_agents_belonging_to_cluster(cluster['cluster_deployment_name'], cluster['namespace'])
-            print(f"Cluster {cluster['cluster_deployment_name']} in namespace {cluster['namespace']} has failed installation. Reason: {cluster['reason']}")
-            for agent in agents:
-                print(f"Agent {agent['name']} in namespace {agent['namespace']} is part of cluster that failed installation. Reason: {agent['reason']}")
-        #print(result)
+        return_data = parse_must_gather(sys.argv[1], clusters=True, find_agents=True)
+        for item in return_data:
+            print(f"{item['type']}: {item['name']} in namespace {item['namespace']} has failed installation. Reason: {item['reason']}")
     else:
         print("Usage: python parse.py <must-gather-path>")
