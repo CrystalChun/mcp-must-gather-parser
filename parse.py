@@ -13,16 +13,23 @@ import structlog
 from resources.agents import AgentParser
 from resources.assisted import assisted_service_active
 from resources.clusters import ClusterParser
+from resources.logs import LogParser
 
 logger = structlog.get_logger(__name__)
 
 
-def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents: bool = False) -> List[Dict[str, Any]]:
+def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents: bool = False, find_logs: bool = False, pod_name: str = '', namespace: str = '', cluster_name: str = '') -> List[Dict[str, Any]]:
     """
     Parse a must-gather archive or directory and extract Agent CRs.
     
     Args:
         must_gather_path: Path to must-gather tar.gz file or extracted directory
+        clusters: bool, optional: Whether to find failed clusters
+        find_agents: bool, optional: Whether to find failed agents
+        find_logs: bool, optional: Whether to find logs
+        pod_name: str, optional: Name of the pod to find logs for
+        namespace: str, optional: Namespace of the pod to find logs for
+        cluster_name: str, optional: Name of the cluster to find logs for
         
     Returns:
         JSON string containing CR information
@@ -46,6 +53,7 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents
                 "summary": {}
             })
 
+        return_data = []
         # Check that assisted-service is active in cluster before parsing
         if assisted_service_active(extracted_path):
             logger.info("assisted-service is enabled")
@@ -55,7 +63,9 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents
                     for cluster in return_data:
                         agents = AgentParser(extracted_path).find_agents_belonging_to_cluster(cluster['cluster_deployment_name'], cluster['namespace'])
                         return_data.extend(agents)
-       
+            if find_logs:
+                logger.info(f"Finding logs for pod {pod_name} in namespace {namespace} and cluster {cluster_name}")
+                return_data = LogParser(extracted_path).get_logs_by_pod(pod_name=pod_name, namespace=namespace, cluster_name=cluster_name)
         # Clean up extracted files if needed
         if cleanup_needed:
             cleanup_extraction(extracted_path)
@@ -63,7 +73,7 @@ def parse_must_gather(must_gather_path: str, clusters: bool = False, find_agents
         return return_data
         
     except Exception as e:
-        logger.error(f"Error parsing must-gather: {str(e)}")
+        logger.error(f"Error parsing must-gather in parse.py: {str(e)}")
         return json.dumps({
             "error": f"Failed to parse must-gather: {str(e)}",
             "return_data": [],
@@ -103,17 +113,10 @@ def cleanup_extraction(extracted_path: Path):
     except Exception as e:
         logger.warning(f"Failed to clean up extraction: {e}")
 
-# TODO: give me the names and namespaces of the agents that are not installed
-# TODO: give me the names and namespaces of the clusters that are not installed 
-# TODO: give me the names and namespaces of the agents associated with the failed clusters
-# TODO: find relevant logs in assisted-service logs for clusters and agents that are not installed
-
 if __name__ == "__main__":
     # Test the function with a must-gather path
     import sys
     if len(sys.argv) > 1:
-        return_data = parse_must_gather(sys.argv[1], clusters=True, find_agents=True)
-        for item in return_data:
-            print(f"{item['type']}: {item['name']} in namespace {item['namespace']} has failed installation. Reason: {item['reason']}")
+        return_data = parse_must_gather(sys.argv[1], find_logs=True, pod_name=sys.argv[2], namespace=sys.argv[3], cluster_name=sys.argv[4])
     else:
         print("Usage: python parse.py <must-gather-path>")
