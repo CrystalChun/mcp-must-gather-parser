@@ -10,11 +10,7 @@ fast = FastAgent("fast-agent example")
 @fast.agent(name="helpful", instruction=
 """You are a helpful AI Agent that can determine clusters that failed installation in a must-gather directory and can detect the logs that are relevant to the failure in the same must-gather directory.
 
-You will be given a must-gather directory and you will need to determine the clusters that failed installation and then get the logs that are relevant to the failure of the cluster.
-
 You will have access to tools that you can call to get the clusters that failed in the must-gather directory and the logs that are relevant to the failure of the cluster.
-
-You will need to use the logs to determine the failure of the cluster.
 
 You will need to use the tools to get the clusters that failed in the must-gather directory and the logs that are relevant to the failure of the cluster.
 
@@ -24,7 +20,7 @@ You will need to use the tools to get the logs that are relevant to the failure 
 @fast.agent(name="fs", instruction="You can look at the filesystem and get the logs that are relevant to the failure of a cluster", servers=["filesystem"])
 @fast.orchestrator(
   name="log_analyzer",                   # name of the orchestrator
-  instruction="find the failed cluster and get all the logs that are relevant to the failure of a cluster",             # base instruction for the orchestrator
+  instruction="find the cluster that failed installation and get all the logs that are relevant to the failure ",             # base instruction for the orchestrator
   agents=["helpful"],           # list of agent names this orchestrator can use
   use_history=False,                     # orchestrator doesn't maintain chat history (no effect).
   human_input=False,                     # whether orchestrator can request human input

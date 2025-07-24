@@ -52,17 +52,17 @@ def get_failed_agents_and_clusters(must_gather_path: str) -> List[Dict[str, Any]
     return failed_clusters
 
 @mcp.tool()
-def get_logs(must_gather_path: str, pod_name: str = '', namespace: str = '', cluster_name: str = '', start_index: int = 0, chunk_size: int = 0) -> List[Dict[str, Any]]:
+def get_logs(must_gather_path: str, pod_name: str = '', namespace: str = '', cluster_name: str = '', start_index: int = 0, chunk_size: int = 50) -> List[Dict[str, Any]]:
     """
     Get logs in a must-gather file, pod name and namespace can be specified
         
     Args:
         must_gather_path (str, required): Path to the must-gather directory
-        pod_name (str, optional): Name of the pod to get logs from
-        namespace (str, optional): Namespace of the pod to get logs from
-        cluster_name (str, optional): Name of the cluster to get logs from
+        pod_name (str, required): Name of the pod to get logs from
+        namespace (str, required): Namespace of the pod to get logs from
+        cluster_name (str, required): Name of the cluster to get logs from
         start_index (int, optional): Start index of the logs to get
-        chunk_size (int, optional): Chunk size of the logs to get
+        chunk_size (int, required): Chunk size of the logs to get
     """
     logs = parse_mg(must_gather_path, find_logs=True, pod_name=pod_name, namespace=namespace, cluster_name=cluster_name)
     logger.info(f"Chunk size {chunk_size} and start index {start_index}")
