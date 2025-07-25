@@ -112,34 +112,33 @@ class AgentParser:
                 'name': metadata.get('name', 'unknown'),
                 'namespace': namespace or metadata.get('namespace'),
                 'creation_timestamp': metadata.get('creationTimestamp'),
-                'labels': metadata.get('labels', {}),
-                'annotations': metadata.get('annotations', {}),
-                'api_version': agent_doc.get('apiVersion'),
+                #'labels': metadata.get('labels', {}),
+                #'annotations': metadata.get('annotations', {}),
+                #'api_version': agent_doc.get('apiVersion'),
                 'type': 'agent',
-                'spec': spec,
-                'status': status,
+                #'spec': spec,
+                #'status': status,
                 
                 # Extract key information for easier analysis
                 'cluster_deployment_name': spec.get('clusterDeploymentName',{}).get('name'),
                 'cluster_namespace': spec.get('clusterDeploymentName',{}).get('namespace'),
                 'approved': spec.get('approved', False),
                 'hostname': spec.get('hostname'),
-                'machine_config_pool': spec.get('machineConfigPool'),
                 'role': spec.get('role'),
-                'installation_disk_path': spec.get('installationDiskPath'),
+                #'installation_disk_path': spec.get('installationDiskPath'),
                 
                 # Status information
                 'conditions': conditions,
                 'debug_info': status.get('debugInfo', {}),
-                'inventory': status.get('inventory', {}),
+                #'inventory': status.get('inventory', {}),
                 'progress': status.get('progress', {}),
                 'validation_info': status.get('validationInfo', {}),
-                'installation_disk_id': status.get('installationDiskID'),
-                'node_name': status.get('nodeName'),
+                #'installation_disk_id': status.get('installationDiskID'),
+                #'node_name': status.get('nodeName'),
                 'failed': failed,
                 'reason': reason,
                 # Raw document for detailed analysis
-                'raw': agent_doc
+                #'raw': agent_doc
             }
             
             return agent
