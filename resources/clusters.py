@@ -3,11 +3,22 @@ from typing import List, Dict, Any, Optional
 import yaml
 import json
 import structlog
+from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+default_logger = structlog.get_logger(__name__)
+
+class Cluster(BaseModel):
+    name: str = Field(description="The name of the cluster")
+    namespace: str = Field(description="The namespace of the cluster")
+    creation_timestamp: str = Field(description="The creation timestamp of the cluster")
+    resource_type: str = Field(description="What resource type this is")
+    cluster_deployment_name: str = Field(description="The name of the cluster deployment")
+    file_path: Path = Field(description="The path to the file that contains the cluster CR")
+    failed: bool = Field(description="Whether the cluster has failed installation")
+    reason: str = Field(description="The reason the cluster failed installation")
 
 class ClusterParser:
-    def __init__(self, must_gather_path: str = None):
+    def __init__(self, must_gather_path: str = None, logger: structlog.stdlib.BoundLogger = default_logger):
         """
         Initialize the ClusterParser with an optional must-gather path.
         
@@ -17,7 +28,7 @@ class ClusterParser:
         self.must_gather_path = Path(must_gather_path) if must_gather_path else None
         self.logger = logger
 
-    def find_agentclusterinstall_crs(self, must_gather_path: Path = None) -> List[Dict[str, Any]]:
+    def find_agentclusterinstall_crs(self, must_gather_path: Path = None) -> List[Cluster]:
         """
         Find and parse AgentClusterInstall Custom Resources in the must-gather.
         
@@ -45,7 +56,7 @@ class ClusterParser:
         self.logger.info(f"Found {len(acis)} AgentClusterInstall CRs")
         return acis
 
-    def _parse_aci_files(self, acis_dir: Path, namespace_dir: Path) -> List[Dict[str, Any]]:
+    def _parse_aci_files(self, acis_dir: Path, namespace_dir: Path) -> List[Cluster]:
         """Parse individual AgentClusterInstall CR files in a directory."""
         acis = []
         
@@ -80,7 +91,7 @@ class ClusterParser:
         
         return acis
 
-    def _parse_single_aci(self, aci_doc: Dict[str, Any], file_path: Path, namespace_dir: Path) -> Optional[Dict[str, Any]]:
+    def _parse_single_aci(self, aci_doc: Dict[str, Any], file_path: Path, namespace_dir: Path) -> Optional[Cluster]:
         """Parse a single AgentClusterInstall CR document."""
         try:
             failed = False
@@ -94,11 +105,11 @@ class ClusterParser:
                     failed = True
                     reason = condition.get('message')
             
-            aci = {
+            aci_dict = {
                 'name': metadata.get('name', 'unknown'),
                 'namespace': metadata.get('namespace'),
                 'creation_timestamp': metadata.get('creationTimestamp'),
-                'type': 'cluster',
+                'resource_type': 'cluster',
                 #'labels': metadata.get('labels', {}),
                 #'annotations': metadata.get('annotations', {}),
                 #'api_version': aci_doc.get('apiVersion'),
@@ -109,6 +120,7 @@ class ClusterParser:
                 'failed': failed,
                 'reason': reason,
             }
+            aci = Cluster(**aci_dict)
 
             return aci
             
@@ -127,13 +139,13 @@ class ClusterParser:
         failed = self._failed_clusters(acis)
         self.logger.info(f"Found {len(failed)} failed clusters")
         for cluster in failed:
-            self.logger.info(f"Cluster {cluster['cluster_deployment_name']} in namespace {cluster['namespace']} has failed installation. Reason: {cluster['reason']}")
+            self.logger.info(f"Cluster {cluster.cluster_deployment_name} in namespace {cluster.namespace} has failed installation. Reason: {cluster.reason}")
         return failed
 
-    def _failed_clusters(self, clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _failed_clusters(self, clusters: List[Cluster]) -> List[Cluster]:
         """Get a list of clusters that have failed installation."""
         failed_clusters = []
         for cluster in clusters:
-            if cluster['failed']:
+            if cluster.failed:
                 failed_clusters.append(cluster)
         return failed_clusters

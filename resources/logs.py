@@ -53,7 +53,24 @@ class LogParser:
         
         self.logger.info(f"Found {len(logs)} pod log entries")
         return logs
-    
+
+    def find_pod_directory(self, pod_name: str = '', namespace: str = '') -> Path:
+        """Find the pod directory in the must-gather."""
+        # Look for pod logs
+        namespaces_path = self.must_gather_path / "namespaces"
+        if namespaces_path.exists():
+            for namespace_dir in namespaces_path.iterdir():
+                if namespace_dir.is_dir() and (namespace is None or namespace_dir.name.startswith(namespace)):
+                    namespace = namespace_dir.name
+                    # Check for pods in this namespace
+                    pods_path = namespace_dir / "pods"
+                    self.logger.info(f"Checking pods in namespace: {pods_path}")
+                    if pods_path.exists():
+                        for pod_dir in pods_path.iterdir():
+                            if pod_dir.is_dir() and (pod_name is None or pod_dir.name.startswith(pod_name)):
+                                return pod_dir
+        return None
+
     def find_pod_logs_directory(self, pod_dir: Path) -> Path:
         """Recursively goes down directory tree to find the logs directory for a pod."""
         if pod_dir.is_dir() and pod_dir.name == 'logs':
