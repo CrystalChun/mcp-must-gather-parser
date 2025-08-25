@@ -1,6 +1,7 @@
-fastmcp>=2.8.0
+fastmcp==2.3.0
 pyyaml>=6.0
 structlog>=23.0.0
 mcp-agent>=0.1.0,<0.2.0
-fast-agent-mcp>=0.1.0
+fast-agent-mcp>=0.2.42
 typing-extensions>=4.0.0
+mcp==1.12.1
